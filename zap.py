@@ -15,6 +15,38 @@ from tqdm.auto import tqdm
 
 import credentials
 
+
+class LogRecordListHandler(logging.Handler):
+    def __init__(self, log_records):
+        super().__init__()
+        self.log_records = log_records
+
+    def emit(self, record):
+        self.log_records.append(record)
+
+
+# create a list to store the logging records
+log_records = []
+
+# create a logger and set the log level to INFO
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# create a custom formatter and add it to the logger
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
+# create a StreamHandler and set the log level to INFO
+handler = logging.StreamHandler()
+handler = LogRecordListHandler(log_records)
+handler.setLevel(logging.INFO)
+
+# add the formatter to the handler
+handler.setFormatter(formatter)
+
+# add the handler to the logger
+logger.addHandler(handler)
+
+
 # Opening Selenium
 option = webdriver.ChromeOptions()
 option.add_argument("--disable-blink-features=AutomationControlled")
@@ -134,6 +166,8 @@ total = extract_number(
     "//h1[@class='summary__title js-summary-title heading-regular heading-regular__bold align-left text-margin-zero results__title']",
 )
 
+logger.info(f"Total de imóveis: {total}")
+
 resultados = browser.find_elements_by_xpath("//div[@class='simple-card__box']")
 
 loop = 1
@@ -143,7 +177,7 @@ next_page = None
 # Loop through pages
 while next_page != "":
 
-    logging.info(f"Obtendo informações sobre a página {loop}")
+    logger.info(f"Obtendo informações sobre a página {loop}")
 
     if loop > 1:
         browser.find_element_by_xpath("//button[@aria-label='Próxima Página']").click()
@@ -154,7 +188,7 @@ while next_page != "":
     dados = []
 
     # Run dados_card_zap for each element in resultados and append the result to dados
-    for card in tqdm(resultados, desc="Obtendo dados dos imóveis"):
+    for card in tqdm(resultados, desc=f"Obtendo dados dos imóveis - Página {loop}"):
         dados.append(dados_card_zap(card))
 
     # convert dados into a DataFrame
@@ -198,7 +232,7 @@ while next_page != "":
 
     df["comentarios"] = ""
 
-    logging.info("Obtaining current table from gsheets")
+    logger.info("Obtaining current table from gsheets")
     gs = pygsheets.authorize(service_file="gsheet_credential.json")
     wb_main = gs.open_by_key(credentials.gsheets_main_key)
     main = pd.DataFrame(wb_main[0].get_all_records())
@@ -219,7 +253,6 @@ while next_page != "":
     # Add column data_adicionado with current timestamp
     df["data_adicionado"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
-    logging.info(f"Sending {len(df)} new rows to gsheets")
     # Append df to wb_main[0], ignoring the header
     if len(df) != 0:
         wb_main[0].set_dataframe(df, (len(main) + 1, 1), copy_head=False, fit=True)
@@ -234,3 +267,23 @@ while next_page != "":
         next_page = ""
 
     loop += 1
+
+    logger.info(f"Página {loop} varrida - {len(df)} novos imóveis encontrados")
+
+logger.info(f"Execução completa com {loop} páginas")
+
+data_log = [
+    {
+        "asctime": datetime.fromtimestamp(record.created).strftime("%Y-%m-%d %H:%M:%S"),
+        "name": record.name,
+        "levelname": record.levelname,
+        "message": record.msg,
+    }
+    for record in log_records
+]
+
+df_log = df = pd.DataFrame.from_records(data_log)
+main_log = pd.DataFrame(wb_main[1].get_all_records())
+wb_main[1].set_dataframe(df_log, (len(main_log) + 1, 1), copy_head=False, fit=True)
+
+print("oi")
