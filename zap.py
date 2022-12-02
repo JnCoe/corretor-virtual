@@ -1,5 +1,6 @@
 import logging
 import pickle
+import random
 import re
 import time
 from datetime import datetime
@@ -14,6 +15,7 @@ from tqdm.auto import tqdm
 
 import credentials
 
+# Opening Selenium
 option = webdriver.ChromeOptions()
 option.add_argument("--disable-blink-features=AutomationControlled")
 option.add_argument("--disable-notifications")
@@ -22,13 +24,19 @@ browser = webdriver.Chrome(options=option)
 browser.get("https://www.google.com")
 
 time.sleep(1)
+
+# Loading cookies to reduce risks of detection
 cookies = pickle.load(open("cookies.pkl", "rb"))
 for cookie in cookies:
     browser.add_cookie(cookie)
 
+# Expanding window to avoid missing elements
 browser.maximize_window()
 
 
+# -- Functions to be used
+
+# Extract numeric value from element
 def extract_number(element, xpath) -> str:
     try:
         number = element.find_element_by_xpath(xpath).text
@@ -40,33 +48,37 @@ def extract_number(element, xpath) -> str:
     return number
 
 
+# Extract images
+# Temporarily returning just first image
 def extract_images_zap(srcs, id) -> str:
     if srcs == []:
         return ""
+
     else:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36"
-        }
+        #! temporarily deactivated
+        # headers = {
+        #     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36"
+        # }
 
-        images = [
-            Image.open(BytesIO(requests.get(src, headers=headers).content))
-            for src in srcs
-        ]
-        widths, heights = zip(*(i.size for i in images))
+        # images = [
+        #     Image.open(BytesIO(requests.get(src, headers=headers).content))
+        #     for src in srcs
+        # ]
+        # widths, heights = zip(*(i.size for i in images))
 
-        total_width = sum(widths)
-        max_height = max(heights)
+        # total_width = sum(widths)
+        # max_height = max(heights)
 
-        new_im = Image.new("RGB", (total_width, max_height))
+        # new_im = Image.new("RGB", (total_width, max_height))
 
-        x_offset = 0
-        for im in images:
-            new_im.paste(im, (x_offset, 0))
-            x_offset += im.size[0]
+        # x_offset = 0
+        # for im in images:
+        #     new_im.paste(im, (x_offset, 0))
+        #     x_offset += im.size[0]
 
         # new_im.save(f'data/images/{id}.jpg')
 
-        # return new_im  ##### ENQUANTO NAO RESOLVO
+        # return new_im
         return f'=IMAGE("{srcs[0]}")'
 
 
@@ -93,6 +105,7 @@ def dados_card_zap(card):
         card,
         ".//p[@class='simple-card__price js-price color-darker heading-regular heading-regular__bolder align-left']",
     )
+
     if aluguel == "":
         aluguel = extract_number(
             card,
@@ -111,6 +124,7 @@ def dados_card_zap(card):
     return [id, url, end, metragem, quartos, banheiros, vaga, cond, iptu, aluguel, img]
 
 
+# Actual scrapping
 url = "https://www.zapimoveis.com.br/aluguel/apartamentos/rj+rio-de-janeiro+zona-sul+flamengo/?onde=,Rio%20de%20Janeiro,Rio%20de%20Janeiro,Zona%20Sul,Flamengo,,,neighborhood,BR%3ERio%20de%20Janeiro%3ENULL%3ERio%20de%20Janeiro%3EZona%20Sul%3EFlamengo,-22.936822,-43.175702,%3B,Rio%20de%20Janeiro,Rio%20de%20Janeiro,Zona%20Sul,Botafogo,,,neighborhood,BR%3ERio%20de%20Janeiro%3ENULL%3ERio%20de%20Janeiro%3EZona%20Sul%3EBotafogo,-22.951193,-43.180784,&transacao=Aluguel&tipo=Im%C3%B3vel%20usado&tipoUnidade=Residencial,Apartamento&precoTotalMaximo=4000&precoTotalMinimo=2000&pagina=1&ordem=Mais%20recente"
 browser.get(url)
 time.sleep(7)
@@ -122,24 +136,25 @@ total = extract_number(
 
 resultados = browser.find_elements_by_xpath("//div[@class='simple-card__box']")
 
-dados = []
-
 loop = 1
 
 next_page = None
 
+# Loop through pages
 while next_page != "":
+
+    logging.info(f"Obtendo informações sobre a página {loop}")
 
     if loop > 1:
         browser.find_element_by_xpath("//button[@aria-label='Próxima Página']").click()
 
-    time.sleep(6)
+    time.sleep(random.randint(6, 12))
     resultados = browser.find_elements_by_xpath("//div[@class='simple-card__box']")
 
     dados = []
 
     # Run dados_card_zap for each element in resultados and append the result to dados
-    for card in tqdm(resultados):
+    for card in tqdm(resultados, desc="Obtendo dados dos imóveis"):
         dados.append(dados_card_zap(card))
 
     # convert dados into a DataFrame
@@ -183,7 +198,7 @@ while next_page != "":
 
     df["comentarios"] = ""
 
-    logging.warning("Obtaining current table from gsheets")
+    logging.info("Obtaining current table from gsheets")
     gs = pygsheets.authorize(service_file="gsheet_credential.json")
     wb_main = gs.open_by_key(credentials.gsheets_main_key)
     main = pd.DataFrame(wb_main[0].get_all_records())
@@ -211,6 +226,7 @@ while next_page != "":
     try:
         # Roll to the end of page
         browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(1)
         next_page = browser.find_element_by_xpath(
             "//button[@aria-label='Próxima Página']"
         )
