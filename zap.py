@@ -41,29 +41,33 @@ def extract_number(element, xpath) -> str:
 
 
 def extract_images_zap(srcs, id) -> str:
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36"
-    }
+    if srcs == []:
+        return ""
+    else:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36"
+        }
 
-    images = [
-        Image.open(BytesIO(requests.get(src, headers=headers).content)) for src in srcs
-    ]
-    widths, heights = zip(*(i.size for i in images))
+        images = [
+            Image.open(BytesIO(requests.get(src, headers=headers).content))
+            for src in srcs
+        ]
+        widths, heights = zip(*(i.size for i in images))
 
-    total_width = sum(widths)
-    max_height = max(heights)
+        total_width = sum(widths)
+        max_height = max(heights)
 
-    new_im = Image.new("RGB", (total_width, max_height))
+        new_im = Image.new("RGB", (total_width, max_height))
 
-    x_offset = 0
-    for im in images:
-        new_im.paste(im, (x_offset, 0))
-        x_offset += im.size[0]
+        x_offset = 0
+        for im in images:
+            new_im.paste(im, (x_offset, 0))
+            x_offset += im.size[0]
 
-    # new_im.save(f'data/images/{id}.jpg')
+        # new_im.save(f'data/images/{id}.jpg')
 
-    # return new_im  ##### ENQUANTO NAO RESOLVO
-    return f'=IMAGE("{srcs[0]}")'
+        # return new_im  ##### ENQUANTO NAO RESOLVO
+        return f'=IMAGE("{srcs[0]}")'
 
 
 def dados_card_zap(card):
@@ -111,8 +115,6 @@ url = "https://www.zapimoveis.com.br/aluguel/apartamentos/rj+rio-de-janeiro+zona
 browser.get(url)
 time.sleep(7)
 
-x = input("Pressione enter quando estiver pronto")
-
 total = extract_number(
     browser,
     "//h1[@class='summary__title js-summary-title heading-regular heading-regular__bold align-left text-margin-zero results__title']",
@@ -122,72 +124,97 @@ resultados = browser.find_elements_by_xpath("//div[@class='simple-card__box']")
 
 dados = []
 
-# Run dados_card_zap for each element in resultados and append the result to dados
-for card in tqdm(resultados):
-    dados.append(dados_card_zap(card))
+loop = 1
 
-# convert dados into a DataFrame
-df = pd.DataFrame(
-    dados,
-    columns=[
-        "id",
-        "url",
-        "end",
-        "metragem",
-        "quartos",
-        "banheiros",
-        "vaga",
-        "cond",
-        "iptu",
-        "aluguel",
-        "img",
-    ],
-)
+next_page = None
 
-# Convert all columns except id, url, end, img to numeric
-for col in df.columns[3:-1]:
-    df[col] = pd.to_numeric(df[col])
+while next_page != "":
 
-df["end_completo"] = ""
+    if loop > 1:
+        browser.find_element_by_xpath("//button[@aria-label='Próxima Página']").click()
 
-# Add column 'preco_metro_quadrado' to df
-df["preco_metro_quadrado"] = round(df["aluguel"] / df["metragem"], 2)
+    time.sleep(6)
+    resultados = browser.find_elements_by_xpath("//div[@class='simple-card__box']")
 
-# Add column 'total' to df
-df["total"] = df["aluguel"] + df["cond"] + df["iptu"]
+    dados = []
 
-# Add column 'id_geral' after column 'id' that is just id+'zap'
-df.insert(1, "id_geral", "zap_" + df["id"])
+    # Run dados_card_zap for each element in resultados and append the result to dados
+    for card in tqdm(resultados):
+        dados.append(dados_card_zap(card))
 
-# Add column 'site' at the end that is just 'zap'
-df["site"] = "zap"
+    # convert dados into a DataFrame
+    df = pd.DataFrame(
+        dados,
+        columns=[
+            "id",
+            "url",
+            "end",
+            "metragem",
+            "quartos",
+            "banheiros",
+            "vaga",
+            "cond",
+            "iptu",
+            "aluguel",
+            "img",
+        ],
+    )
 
-# Add column 'status' that is empty
-df["status"] = ""
+    # Convert all columns except id, url, end, img to numeric
+    for col in df.columns[3:-1]:
+        df[col] = pd.to_numeric(df[col])
 
-df["comentarios"] = ""
+    df["end_completo"] = ""
 
-logging.info("Obtaining current table from gsheets")
-gs = pygsheets.authorize(service_file="gsheet_credential.json")
-wb_main = gs.open_by_key(credentials.gsheets_main_key)
-main = pd.DataFrame(wb_main[0].get_all_records())
-# wb_main[0].clear()
-# wb_main[0].set_dataframe(df, (1, 1))
+    # Add column 'preco_metro_quadrado' to df
+    df["preco_metro_quadrado"] = round(df["aluguel"] / df["metragem"], 2)
 
-# Drop all rows where 'id_geral' is in main['id_geral']
-df = df[~df["id_geral"].isin(main["id_geral"])]
+    # Add column 'total' to df
+    df["total"] = df["aluguel"] + df["cond"] + df["iptu"]
 
-# round all numbers to 0 decimal places
-df = (
-    df.round(0)
-    .astype(str)
-    .replace("\.0", "", regex=True)
-    .replace("nan", "", regex=True)
-)
+    # Add column 'id_geral' after column 'id' that is just id+'zap'
+    df.insert(1, "id_geral", "zap_" + df["id"])
 
-# Add column data_adicionado with current timestamp
-df["data_adicionado"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    # Add column 'site' at the end that is just 'zap'
+    df["site"] = "zap"
 
-logging.info(f"Sending {len(df)} new rows to gsheets")
-# Append df to wb_main[0], ignoring the header
-wb_main[0].set_dataframe(df, (len(main) + 1, 1), copy_head=False, fit=True)
+    # Add column 'status' that is empty
+    df["status"] = ""
+
+    df["comentarios"] = ""
+
+    logging.warning("Obtaining current table from gsheets")
+    gs = pygsheets.authorize(service_file="gsheet_credential.json")
+    wb_main = gs.open_by_key(credentials.gsheets_main_key)
+    main = pd.DataFrame(wb_main[0].get_all_records())
+    # wb_main[0].clear()
+    # wb_main[0].set_dataframe(df, (1, 1))
+
+    # Drop all rows where 'id_geral' is in main['id_geral']
+    df = df[~df["id_geral"].isin(main["id_geral"])]
+
+    # round all numbers to 0 decimal places
+    df = (
+        df.round(0)
+        .astype(str)
+        .replace("\.0", "", regex=True)
+        .replace("nan", "", regex=True)
+    )
+
+    # Add column data_adicionado with current timestamp
+    df["data_adicionado"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+    logging.info(f"Sending {len(df)} new rows to gsheets")
+    # Append df to wb_main[0], ignoring the header
+    if len(df) != 0:
+        wb_main[0].set_dataframe(df, (len(main) + 1, 1), copy_head=False, fit=True)
+    try:
+        # Roll to the end of page
+        browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        next_page = browser.find_element_by_xpath(
+            "//button[@aria-label='Próxima Página']"
+        )
+    except:
+        next_page = ""
+
+    loop += 1
