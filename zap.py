@@ -46,6 +46,8 @@ handler.setFormatter(formatter)
 # add the handler to the logger
 logger.addHandler(handler)
 
+logger.info("------------------------------------------------")
+logger.info("Nova execução")
 
 # Opening Selenium
 option = webdriver.ChromeOptions()
@@ -171,6 +173,7 @@ logger.info(f"Total de imóveis: {total}")
 resultados = browser.find_elements_by_xpath("//div[@class='simple-card__box']")
 
 loop = 1
+novos_imoveis = 0
 
 next_page = None
 
@@ -232,7 +235,6 @@ while next_page != "":
 
     df["comentarios"] = ""
 
-    logger.info("Obtaining current table from gsheets")
     gs = pygsheets.authorize(service_file="gsheet_credential.json")
     wb_main = gs.open_by_key(credentials.gsheets_main_key)
     main = pd.DataFrame(wb_main[0].get_all_records())
@@ -255,7 +257,7 @@ while next_page != "":
 
     # Append df to wb_main[0], ignoring the header
     if len(df) != 0:
-        wb_main[0].set_dataframe(df, (len(main) + 1, 1), copy_head=False, fit=True)
+        wb_main[0].set_dataframe(df, (len(main) + 2, 1), copy_head=False, fit=True)
     try:
         # Roll to the end of page
         browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
@@ -266,11 +268,16 @@ while next_page != "":
     except:
         next_page = ""
 
+    novos_imoveis += len(df)
+
+    # Save df id column into list
+    ids = df["id"].tolist()
+
+    logger.info(f"Página {loop} varrida - {len(df)} novos imóveis encontrados: {ids}")
     loop += 1
 
-    logger.info(f"Página {loop} varrida - {len(df)} novos imóveis encontrados")
-
 logger.info(f"Execução completa com {loop} páginas")
+logger.info(f">>>>> Total de novos imóveis: {novos_imoveis}")
 
 data_log = [
     {
@@ -284,6 +291,4 @@ data_log = [
 
 df_log = df = pd.DataFrame.from_records(data_log)
 main_log = pd.DataFrame(wb_main[1].get_all_records())
-wb_main[1].set_dataframe(df_log, (len(main_log) + 1, 1), copy_head=False, fit=True)
-
-print("oi")
+wb_main[1].set_dataframe(df_log, (len(main_log) + 2, 1), copy_head=False, fit=True)
