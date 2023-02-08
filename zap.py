@@ -226,10 +226,6 @@ while next_page != "":
 
     logger.info(f"Obtendo informações sobre a página {loop}")
 
-    # Click on the next page button
-    if loop > 1:
-        browser.find_element_by_xpath("//button[@aria-label='Próxima Página']").click()
-
     time.sleep(random.randint(6, 12))
     resultados = browser.find_elements_by_xpath("//div[@class='simple-card__box']")
 
@@ -280,13 +276,14 @@ while next_page != "":
 
     df["comentarios"] = ""
 
+    # Open Gsheet to get records
     gs = pygsheets.authorize(service_file="gsheet_credential.json")
     wb_main = gs.open_by_key(credentials.gsheets_main_key)
     main = pd.DataFrame(wb_main[0].get_all_records())
     # wb_main[0].clear()
     # wb_main[0].set_dataframe(df, (1, 1))
 
-    # Drop all rows where 'id_geral' is in main['id_geral']
+    # Drop all rows that already are on the Gsheet (redundancy)
     df = df[~df["id_geral"].isin(main["id_geral"])]
 
     # round all numbers to 0 decimal places
@@ -310,6 +307,9 @@ while next_page != "":
         next_page = browser.find_element_by_xpath(
             "//button[@aria-label='Próxima Página']"
         )
+        next_page.click()
+
+    # If next page button is not found, break the loop
     except:
         logger.info("Próxima página não encontrada")
         next_page = ""
@@ -335,6 +335,7 @@ data_log = [
     for record in log_records
 ]
 
+# Saving results to Gsheet
 df_log = df = pd.DataFrame.from_records(data_log)
 main_log = pd.DataFrame(wb_main[1].get_all_records())
 wb_main[1].set_dataframe(df_log, (len(main_log) + 2, 1), copy_head=False, fit=True)
