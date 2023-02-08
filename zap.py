@@ -18,6 +18,7 @@ import credentials
 
 class LogRecordListHandler(logging.Handler):
     def __init__(self, log_records):
+        """This class will append all the logs (default set to INFO) into a list to later store it at another spreadsheet"""
         super().__init__()
         self.log_records = log_records
 
@@ -36,7 +37,7 @@ logger.setLevel(logging.INFO)
 formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 # create a StreamHandler and set the log level to INFO
-handler = logging.StreamHandler()
+handler_stream = logging.StreamHandler()
 handler = LogRecordListHandler(log_records)
 handler.setLevel(logging.INFO)
 
@@ -45,17 +46,22 @@ handler.setFormatter(formatter)
 
 # add the handler to the logger
 logger.addHandler(handler)
+logger.addHandler(handler_stream)
 
 logger.info("------------------------------------------------")
-logger.info("Nova execução")
+logger.info("New execution")
 
 # Opening Selenium
 option = webdriver.ChromeOptions()
-option.add_argument("--disable-blink-features=AutomationControlled")
-option.add_argument("--disable-notifications")
+option.add_argument(
+    "--disable-blink-features=AutomationControlled"
+)  # Hiding flag for identifying automation
+option.add_argument(
+    "--disable-notifications"
+)  # Automatically deny notification requests
 browser = webdriver.Chrome(options=option)
 
-browser.get("https://www.google.com")
+browser.get("https://www.google.com")  # Open any page just to load the cookies
 
 time.sleep(1)
 
@@ -72,6 +78,14 @@ browser.maximize_window()
 
 # Extract numeric value from element
 def extract_number(element, xpath) -> str:
+    """This function will get a Selenium object and return just the number within it.
+
+    Args:
+        element (obj): Selenium object of the desired number (e.g.: footage)
+        xpath (str): String containing the xpath of the element with the desired number
+
+    Returns:
+        str: number inside of the element as a string"""
     try:
         number = element.find_element_by_xpath(xpath).text
         number = re.sub("\D", "", number)
@@ -85,11 +99,20 @@ def extract_number(element, xpath) -> str:
 # Extract images
 # Temporarily returning just first image
 def extract_images_zap(srcs, id) -> str:
+    """This function returns the first image of the gallery of images
+    
+    Args:
+        srcs (list): List of strings containing the urls of the images
+        id (str): String containing the id of the property [deprecated]
+        
+    Returns:
+        str: String containing the url of the first image"""
     if srcs == []:
         return ""
 
     else:
-        #! temporarily deactivated
+        #! Collecting pictures is time-consuming and may lead to automation detection
+        #! it also adds little value to the data. Hence, it was deactivated
         # headers = {
         #     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36"
         # }
@@ -116,10 +139,21 @@ def extract_images_zap(srcs, id) -> str:
         return f'=IMAGE("{srcs[0]}")'
 
 
-def dados_card_zap(card):
+def dados_card_zap(card) -> list:
+    """"This function returns all the information about the property
+    
+    Args:
+        card (obj): Selenium object of the card containing the property
+        
+    Returns:
+        list: List containing all the information about the property"""
+    
+    # Obtaining the ID of the property
     id = card.find_element_by_xpath("./ancestor::div[3]").get_attribute("data-id")
+    # Storing URL using the ID
     url = f"https://www.zapimoveis.com.br/imovel/{id}"
 
+    # Getting variables for the property
     metragem = extract_number(card, ".//span[@itemprop='floorSize']")
     quartos = extract_number(card, ".//span[@itemprop='numberOfRooms']")
     banheiros = extract_number(card, ".//span[@itemprop='numberOfBathroomsTotal']")
@@ -127,10 +161,12 @@ def dados_card_zap(card):
         card, ".//li[@class='feature__item text-small js-parking-spaces']"
     )
 
+    # Obtaining the address
     end = card.find_element_by_xpath(
         ".//h2[@class='simple-card__address color-dark text-regular']"
     ).text
 
+    # Obtaining financial variables
     cond = extract_number(
         card, ".//li[@class='card-price__item condominium text-regular']"
     )
@@ -140,12 +176,14 @@ def dados_card_zap(card):
         ".//p[@class='simple-card__price js-price color-darker heading-regular heading-regular__bolder align-left']",
     )
 
+    # Some properties have a different layout for the rental price
     if aluguel == "":
         aluguel = extract_number(
             card,
             ".//p[@class='simple-card__price js-price color-primary heading-regular heading-regular__bolder align-left']",
         )
 
+    # Obtaining list of images
     srcs = [
         img.get_attribute("src")
         for img in card.find_elements_by_xpath(
@@ -153,16 +191,20 @@ def dados_card_zap(card):
         )
     ]
 
+    # Extracting images
     img = extract_images_zap(srcs, id)
 
+    # Returning all the information
     return [id, url, end, metragem, quartos, banheiros, vaga, cond, iptu, aluguel, img]
 
 
 # Actual scrapping
-url = "https://www.zapimoveis.com.br/aluguel/apartamentos/rj+rio-de-janeiro+zona-sul+flamengo/?onde=,Rio%20de%20Janeiro,Rio%20de%20Janeiro,Zona%20Sul,Flamengo,,,neighborhood,BR%3ERio%20de%20Janeiro%3ENULL%3ERio%20de%20Janeiro%3EZona%20Sul%3EFlamengo,-22.936822,-43.175702,%3B,Rio%20de%20Janeiro,Rio%20de%20Janeiro,Zona%20Sul,Botafogo,,,neighborhood,BR%3ERio%20de%20Janeiro%3ENULL%3ERio%20de%20Janeiro%3EZona%20Sul%3EBotafogo,-22.951193,-43.180784,&transacao=Aluguel&tipo=Im%C3%B3vel%20usado&tipoUnidade=Residencial,Apartamento&precoTotalMaximo=4000&precoTotalMinimo=2000&pagina=1&ordem=Mais%20recente"
+# Change the URL to the desired one
+url = "https://www.zapimoveis.com.br/aluguel/apartamentos/rj+rio-de-janeiro+zona-sul+ipanema/2-quartos/?onde=,Rio%20de%20Janeiro,Rio%20de%20Janeiro,Zona%20Sul,Ipanema,,,neighborhood,BR%3ERio%20de%20Janeiro%3ENULL%3ERio%20de%20Janeiro%3EZona%20Sul%3EIpanema,-22.984667,-43.198593,&transacao=Aluguel&tipo=Im%C3%B3vel%20usado&tipos=apartamento_residencial&precoMaximo=6000&pagina=1&quartos=2&tipoAluguel=Mensal"
 browser.get(url)
 time.sleep(7)
 
+# Obtaining total number of properties
 total = extract_number(
     browser,
     "//h1[@class='summary__title js-summary-title heading-regular heading-regular__bold align-left text-margin-zero results__title']",
@@ -170,8 +212,10 @@ total = extract_number(
 
 logger.info(f"Total de imóveis: {total}")
 
+# Extracting all the results from the page
 resultados = browser.find_elements_by_xpath("//div[@class='simple-card__box']")
 
+# Start counting
 loop = 1
 novos_imoveis = 0
 
@@ -182,6 +226,7 @@ while next_page != "":
 
     logger.info(f"Obtendo informações sobre a página {loop}")
 
+    # Click on the next page button
     if loop > 1:
         browser.find_element_by_xpath("//button[@aria-label='Próxima Página']").click()
 
@@ -266,6 +311,7 @@ while next_page != "":
             "//button[@aria-label='Próxima Página']"
         )
     except:
+        logger.info("Próxima página não encontrada")
         next_page = ""
 
     novos_imoveis += len(df)
