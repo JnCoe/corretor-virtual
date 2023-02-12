@@ -342,6 +342,6 @@ data_log = [
 ]
 
 # Saving results to Gsheet
-df_log = df = pd.DataFrame.from_records(data_log)
+df_log = pd.DataFrame.from_records(data_log)
 main_log = pd.DataFrame(wb_main[1].get_all_records())
 wb_main[1].set_dataframe(df_log, (len(main_log) + 2, 1), copy_head=False, fit=True)
