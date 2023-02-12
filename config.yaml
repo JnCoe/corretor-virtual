@@ -1,0 +1,4 @@
+credentials:
+  gsheets_main_key: 7Fqm3yjVlLpTmwqVNAItpp45XjEjrYH7y_MTpQ6T8h5R1
+parameters:
+  url: https://www.zapimoveis.com.br/aluguel/apartamentos/rj+rio-de-janeiro+zona-sul+ipanema/2-quartos/?onde=,Rio%20de%20Janeiro,Rio%20de%20Janeiro,Zona%20Sul,Ipanema,,,neighborhood,BR%3ERio%20de%20Janeiro%3ENULL%3ERio%20de%20Janeiro%3EZona%20Sul%3EIpanema,-22.984667,-43.198593,&transacao=Aluguel&tipo=Im%C3%B3vel%20usado&tipos=apartamento_residencial&precoMaximo=6000&pagina=1&quartos=2&tipoAluguel=Mensal

@@ -9,6 +9,7 @@ from io import BytesIO
 import pandas as pd
 import pygsheets
 import requests
+import yaml
 from PIL import Image
 from selenium import webdriver
 from tqdm.auto import tqdm
@@ -25,6 +26,10 @@ class LogRecordListHandler(logging.Handler):
     def emit(self, record):
         self.log_records.append(record)
 
+
+# Load config file
+with open("config.yaml") as f:
+    config = yaml.safe_load(f)
 
 # create a list to store the logging records
 log_records = []
@@ -100,11 +105,11 @@ def extract_number(element, xpath) -> str:
 # Temporarily returning just first image
 def extract_images_zap(srcs, id) -> str:
     """This function returns the first image of the gallery of images
-    
+
     Args:
         srcs (list): List of strings containing the urls of the images
         id (str): String containing the id of the property [deprecated]
-        
+
     Returns:
         str: String containing the url of the first image"""
     if srcs == []:
@@ -140,14 +145,14 @@ def extract_images_zap(srcs, id) -> str:
 
 
 def dados_card_zap(card) -> list:
-    """"This function returns all the information about the property
-    
+    """ "This function returns all the information about the property
+
     Args:
         card (obj): Selenium object of the card containing the property
-        
+
     Returns:
         list: List containing all the information about the property"""
-    
+
     # Obtaining the ID of the property
     id = card.find_element_by_xpath("./ancestor::div[3]").get_attribute("data-id")
     # Storing URL using the ID
@@ -200,7 +205,7 @@ def dados_card_zap(card) -> list:
 
 # Actual scrapping
 # Change the URL to the desired one
-url = "https://www.zapimoveis.com.br/aluguel/apartamentos/rj+rio-de-janeiro+zona-sul+ipanema/2-quartos/?onde=,Rio%20de%20Janeiro,Rio%20de%20Janeiro,Zona%20Sul,Ipanema,,,neighborhood,BR%3ERio%20de%20Janeiro%3ENULL%3ERio%20de%20Janeiro%3EZona%20Sul%3EIpanema,-22.984667,-43.198593,&transacao=Aluguel&tipo=Im%C3%B3vel%20usado&tipos=apartamento_residencial&precoMaximo=6000&pagina=1&quartos=2&tipoAluguel=Mensal"
+url = config["parameters"]["url"]
 browser.get(url)
 time.sleep(7)
 
@@ -278,7 +283,8 @@ while next_page != "":
 
     # Open Gsheet to get records
     gs = pygsheets.authorize(service_file="gsheet_credential.json")
-    wb_main = gs.open_by_key(credentials.gsheets_main_key)
+    gsheets_main_key = config["credentials"]["gsheets_main_key"]
+    wb_main = gs.open_by_key(gsheets_main_key)
     main = pd.DataFrame(wb_main[0].get_all_records())
     # wb_main[0].clear()
     # wb_main[0].set_dataframe(df, (1, 1))
