@@ -1,6 +1,6 @@
 # 🏡 Corretor Virtual
 
-This basic script will go through major real state websites* in Brazil and check for new properties that match your criteria.
+This basic script will go through major real estate websites* in Brazil and check for new properties that match your criteria.
 New properties are added to a Google Sheet with their details listed.
 
 ## How to use
