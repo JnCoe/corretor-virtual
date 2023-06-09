@@ -4,17 +4,13 @@ import random
 import re
 import time
 from datetime import datetime
-from io import BytesIO
 
 import pandas as pd
 import pygsheets
-import requests
 import yaml
-from PIL import Image
 from selenium import webdriver
+from selenium.webdriver.common.by import By
 from tqdm.auto import tqdm
-
-import credentials
 
 
 class LogRecordListHandler(logging.Handler):
@@ -81,6 +77,7 @@ browser.maximize_window()
 
 # -- Functions to be used
 
+
 # Extract numeric value from element
 def extract_number(element, xpath) -> str:
     """This function will get a Selenium object and return just the number within it.
@@ -92,7 +89,7 @@ def extract_number(element, xpath) -> str:
     Returns:
         str: number inside of the element as a string"""
     try:
-        number = element.find_element_by_xpath(xpath).text
+        number = element.find_element(By.XPATH, xpath).text
         number = re.sub("\D", "", number)
 
     except:
@@ -154,7 +151,7 @@ def dados_card_zap(card) -> list:
         list: List containing all the information about the property"""
 
     # Obtaining the ID of the property
-    id = card.find_element_by_xpath("./ancestor::div[3]").get_attribute("data-id")
+    id = card.find_element(By.XPATH, "./ancestor::div[3]").get_attribute("data-id")
     # Storing URL using the ID
     url = f"https://www.zapimoveis.com.br/imovel/{id}"
 
@@ -167,8 +164,8 @@ def dados_card_zap(card) -> list:
     )
 
     # Obtaining the address
-    end = card.find_element_by_xpath(
-        ".//h2[@class='simple-card__address color-dark text-regular']"
+    end = card.find_element(
+        By.XPATH, ".//h2[@class='simple-card__address color-dark text-regular']"
     ).text
 
     # Obtaining financial variables
@@ -191,8 +188,9 @@ def dados_card_zap(card) -> list:
     # Obtaining list of images
     srcs = [
         img.get_attribute("src")
-        for img in card.find_elements_by_xpath(
-            "./ancestor::div[2]//div[@class='carousel oz-card-image__carousel']//img"
+        for img in card.find_elements(
+            By.XPATH,
+            "./ancestor::div[2]//div[@class='carousel oz-card-image__carousel']//img",
         )
     ]
 
@@ -218,7 +216,7 @@ total = extract_number(
 logger.info(f"Total de imóveis: {total}")
 
 # Extracting all the results from the page
-resultados = browser.find_elements_by_xpath("//div[@class='simple-card__box']")
+resultados = browser.find_elements(By.XPATH, "//div[@class='simple-card__box']")
 
 # Start counting
 loop = 1
@@ -228,11 +226,10 @@ next_page = None
 
 # Loop through pages
 while next_page != "":
-
     logger.info(f"Obtendo informações sobre a página {loop}")
 
     time.sleep(random.randint(6, 12))
-    resultados = browser.find_elements_by_xpath("//div[@class='simple-card__box']")
+    resultados = browser.find_elements(By.XPATH, "//div[@class='simple-card__box']")
 
     dados = []
 
@@ -286,11 +283,36 @@ while next_page != "":
     gsheets_main_key = config["credentials"]["gsheets_main_key"]
     wb_main = gs.open_by_key(gsheets_main_key)
     main = pd.DataFrame(wb_main[0].get_all_records())
+    # Check if main is empty, if so, add header
+    if len(main) == 0:
+        header = [
+            "id",
+            "id_geral",
+            "url",
+            "end",
+            "metragem",
+            "quartos",
+            "banheiros",
+            "vaga",
+            "cond",
+            "iptu",
+            "aluguel",
+            "img",
+            "end_completo",
+            "preco_metro_quadrado",
+            "total",
+            "site",
+            "status",
+            "comentarios",
+            "data_adicionado",
+        ]
+        wb_main[0].set_dataframe(pd.DataFrame(columns=header), (1, 1))
+        main = pd.DataFrame(wb_main[0].get_all_records())
+    else:
+        # Drop all rows that already are on the Gsheet (redundancy)
+        df = df[~df["id_geral"].isin(main["id_geral"])]
     # wb_main[0].clear()
     # wb_main[0].set_dataframe(df, (1, 1))
-
-    # Drop all rows that already are on the Gsheet (redundancy)
-    df = df[~df["id_geral"].isin(main["id_geral"])]
 
     # round all numbers to 0 decimal places
     df = (
@@ -310,9 +332,15 @@ while next_page != "":
         # Roll to the end of page
         browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
         time.sleep(1)
-        next_page = browser.find_element_by_xpath(
-            "//button[@aria-label='Próxima Página']"
+        next_page = browser.find_element(
+            By.XPATH, "//button[@aria-label='Próxima Página']"
         )
+        print(f"next_page object: {next_page}")
+        browser.execute_script(
+            "arguments[0].scrollIntoView({behavior: 'auto', block: 'center', inline: 'nearest'});",
+            next_page,
+        )
+        time.sleep(1)
         next_page.click()
 
     # If next page button is not found, break the loop
