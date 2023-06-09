@@ -4,7 +4,9 @@ This basic script will go through major real estate websites* in Brazil and chec
 New properties are added to a Google Sheet with their details listed.
 
 ## How to use
-Just load your python environment and run the zap.py script. New properties will be added to the defined Google Sheet along with the log for each run.
+Ideally, you will want to create a virtual environment for this project before installing its packages. If you don't know how to do that, check [this guide](https://packaging.python.org/guides/installing-using-pip-and-virtual-environments/).
+
+The requirements.txt file contains all the necessary packages to run the script. You can install them with `pip install -r requirements.txt` after loading your virtual environment.
 
 Make sure that the spreadsheet selected has two worksheets. The properties will be stored on the first one and the log on the second one.
 
