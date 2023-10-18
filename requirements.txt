@@ -41,5 +41,5 @@ trio==0.22.0
 trio-websocket==0.10.3
 tzdata==2023.3
 uritemplate==4.1.1
-urllib3==1.26.16
+urllib3==1.26.18
 wsproto==1.2.0
